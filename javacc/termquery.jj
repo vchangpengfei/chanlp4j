@@ -1,0 +1,135 @@
+
+options {
+    STATIC=false;
+//    DEBUG_PARSER = true;
+    UNICODE_PARSER = true;
+    JAVA_UNICODE_ESCAPE=true;
+    JDK_VERSION = "1.8";
+}
+
+PARSER_BEGIN(TermQueryParser)
+package com.chanlp4j.query;
+/**
+ * ID lister.
+ */
+public class TermQueryParser {
+
+  /** Main entry point. */
+  public static void main(String args[]) throws ParseException {
+//    TermQueryParser parser = new TermQueryParser(System.in);
+//    com.chanlp4j.TermList termList=new com.chanlp4j.TermList();
+//    System.out.println(parser.parse(termList));
+  }
+
+}
+
+PARSER_END(TermQueryParser)
+
+ TOKEN : {
+  <#_NUM_CHAR:        ["0"-"9"] >
+| <#_ESCAPED_CHAR:    "\\" ~[] >  // every character that follows a backslash is considered as an escaped character
+| <#_TERM_START_CHAR: ( ~[ " ", "\t", "\n", "\r", "\u3000", "+", "-", "!", "(", ")", ":", "^",
+                           "[", "]", "\"", "{", "}", "~", "*", "?", "\\", "/" ]
+                        | <_ESCAPED_CHAR> ) >
+| <#_TERM_CHAR:       ( <_TERM_START_CHAR> | "-" | "+" ) >
+| <#_WHITESPACE:      ( " " | "\t" | "\n" | "\r" | "\u3000") >
+| <#_QUOTED_CHAR:     ( ~[ "\"", "\\" ] | <_ESCAPED_CHAR> ) >
+}
+
+
+SKIP : {
+  " " | "\t" | "\n" | "\r" | "\u3000"
+}
+
+TOKEN : {
+//  < Id: ["a"-"z","A"-"Z"] ( ["a"-"z","A"-"Z","0"-"9"] )* >
+
+  <AND:           ("&&") >
+  | <OR:            ("||") >
+//  | <NOT:           ("NOT" | "!") >
+  | <LPAREN:        "(" >
+  | <RPAREN:        ")" >
+  | <NOT:        "!" >
+//  | <TERM:          ["a"-"z","A"-"Z","_","0"-"9"] ( ["a"-"z","A"-"Z","_","0"-"9"] )*  >
+| <TERM:          <_TERM_START_CHAR> (<_TERM_CHAR>)*  >
+}
+
+/** Top level production. */
+
+
+boolean parse(com.chanlp4j.TermList termlist)  :
+{
+boolean value =false;
+boolean i = false;
+}
+{
+     value = expression(termlist)
+<EOF>
+{
+    return value ;
+}
+}
+
+
+boolean expression(com.chanlp4j.TermList termlist)  :
+{
+boolean value =false;
+boolean i = false;
+}
+{
+ (value=expressionItem(termlist))
+(
+    <AND>
+    (i=expressionItem(termlist))
+    { value &= i ; }
+    |
+    <OR>
+    (i=expressionItem(termlist))
+    { value |= i ; }
+    )*
+{
+    return value ;
+}
+}
+
+
+
+boolean expressionItem(com.chanlp4j.TermList termlist)  :{
+boolean value =false;
+Token not=null;
+}
+{
+
+    (   [not=<NOT>]
+        (<LPAREN> value = expression(termlist) <RPAREN>|value = expr(termlist))
+    )
+    {
+        if(not!=null)
+        {
+            value=!value;
+        }else{
+            value=value;
+        }
+    }
+
+{
+    return value;
+}
+}
+
+
+
+
+boolean expr(com.chanlp4j.TermList termlist)  :{
+boolean res = false;
+Token t=null;
+}
+{
+    (
+        (t =  <TERM>)
+        {res =termlist.contain(t.image);}
+    )
+{
+    return res;
+}
+}
