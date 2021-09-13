@@ -1,5 +1,5 @@
 # chanlp4j
-trick for nlp
+trick for nlp 高性能表达式过滤文本
 
 
 #高性能表达式过滤文本
