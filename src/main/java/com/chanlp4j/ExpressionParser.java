@@ -48,7 +48,11 @@ public class ExpressionParser<T> {
                 String[] termTypeStr = value.split("\\|\\||&&|\\(|\\)|\\!");
                 for(String s:termTypeStr)
                 {
-                    treeMap.put(s.trim().toLowerCase(),null);
+                    if(StringUtils.isNotBlank(s))
+                    {
+                        treeMap.put(s.trim().toLowerCase(),null);
+
+                    }
                 }
             }
         }
