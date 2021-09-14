@@ -45,7 +45,7 @@ public class ExpressionParser<T> {
 
                 exressionMap.put(key,value);
 
-                String[] termTypeStr = value.split("\\|\\||&&|\\(|\\)");
+                String[] termTypeStr = value.split("\\|\\||&&|\\(|\\)|\\!");
                 for(String s:termTypeStr)
                 {
                     treeMap.put(s.trim().toLowerCase(),null);
