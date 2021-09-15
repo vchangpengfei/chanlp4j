@@ -1,149 +1,110 @@
-package com.chanlp4j.query;
+package com.chanlp4j;
 
-import com.hankcs.hanlp.utility.CharacterHelper;
+
+import com.chanlp4j.query.ParseException;
+import com.chanlp4j.query.TermList;
+import com.chanlp4j.query.TermQueryParser;
+import com.hankcs.hanlp.collection.trie.DoubleArrayTrie;
 import org.apache.commons.lang3.StringUtils;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Set;
+
+import java.io.ByteArrayInputStream;
+import java.util.*;
 
 /**
  * Created by pfchang
- * on 2020/7/30.
+ * on 2021/9/9.
  */
-public class TermList {
+public class ExpressionParser<T> {
 
-    Set< String > set;
 
-    HashMap<String, List<Integer[]>> map;
+    private  DoubleArrayTrie<String> trie=new DoubleArrayTrie();
 
-    char[] charArr;
 
-    public TermList(Set< String > set) {
-        this.set = set;
+    private Map<T, String> exressionMap;
+
+    private static ExpressionParser instance=new ExpressionParser();
+
+    private ExpressionParser(){}
+
+    public static ExpressionParser getInstance(){
+        return instance;
     }
 
-    public TermList(HashMap<String, List<Integer[]>> map) {
-        set=map.keySet();
-        this.map=map;
-    }
 
-    public TermList(HashMap<String, List<Integer[]>> map, char[] carray) {
-        this.set=map.keySet();
-        this.map=map;
-        this.charArr=carray;
-    }
+    public void load(Map<T, String> dict){
+        TreeMap<String,String> treeMap=new TreeMap<>();
+        Map<T,String> exressionMap=new HashMap();
 
-    public boolean contain(String image) {
-
-        boolean needInt=false;
-        if(image.indexOf("<int>")!=-1)
+        for(Map.Entry<T, String> entry:dict.entrySet())
         {
-            image=image.replace("<int>","");
-            needInt=true;
-        }
-
-        List<Integer[]> x = processExclude(image);
-
-
-        if(x!=null&&x.size()>0&&needInt)
-        {
-            boolean hasInt=false;
-            for(Integer[] offset:x)
+            String value=entry.getValue().toLowerCase();
+            T key=entry.getKey();
+            if(StringUtils.isNotBlank(value))
             {
-                if(offset[0]>0)
+
+                exressionMap.put(key,value);
+
+                String[] termTypeStr = value.split("\\|\\||&&|\\(|\\)|\\!|\\<int\\>|\\-");
+                for(String s:termTypeStr)
                 {
-                    if(CharacterHelper.isArabicNumber(charArr[offset[0]-1]))
+                    if(StringUtils.isNotBlank(s))
                     {
-                        hasInt=true;
+                        treeMap.put(s.trim().toLowerCase(),null);
+
                     }
                 }
             }
+        }
 
-            if(hasInt)
+
+        trie.build(treeMap);
+        this.exressionMap=exressionMap;
+    }
+
+
+    public ArrayList<T> getMatchItems(String sentence) throws ParseException {
+
+
+        if(exressionMap==null)
+        {
+            throw new RuntimeException("请执行load方法初始化");
+        }
+
+        HashMap<String,List<Integer[]>> map=new HashMap<String,List<Integer[]>>();
+        ArrayList<T> res=new ArrayList<>();
+        char[] carray=sentence.toLowerCase().toCharArray();
+        DoubleArrayTrie<String>.Searcher searcher
+                = trie.getSearcher(carray, 0);
+        while (searcher.next()) {
+            Integer offset[]=new Integer[2];
+            offset[0]=searcher.begin;
+            offset[1]=searcher.length;
+            String token=new String(carray, searcher.begin, searcher.length);
+            if(map.containsKey(token))
             {
-                return true;
+                map.get(token).add(offset);
             }else{
-                return false;
+                ArrayList<Integer[]> offList=new ArrayList<>();
+                offList.add(offset);
+                map.put(new String(carray, searcher.begin, searcher.length),offList);
             }
 
         }
 
-        if (x != null&&x.size()>0)
-            return true;
+        for (Map.Entry<T, String> entry : exressionMap.entrySet()) {
 
-        return set.contains(image);
-    }
-
-    private List<Integer[]> processExclude(String image) {
-        String excludeArr[]= StringUtils.split(image,'-');
-        if(excludeArr.length>1&&set.contains(excludeArr[0]))
-        {
-            List<Integer[]> offList=map.get(excludeArr[0]);
-            List<Integer[]> offListTemp=new ArrayList<>(offList);
-
-            int termNum=offList.size();
-            for(int i=1;i<excludeArr.length;i++)
-            {
-
-                List<Integer[]> otherOffList=map.get(excludeArr[i]);
-                if(otherOffList!=null)
-                {
-                    for(Integer[] offset:otherOffList)
-                    {
-                        for(Integer[] off:offList)
-                        {
-                            if(checkCross(off,offset))
-                            {
-                                termNum--;
-                                offListTemp.remove(off);
-                                if(termNum==0)
-                                {
-                                    return null;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            return offListTemp;
-        }else{
-            return map.get(image);
-        }
-    }
-
-    public boolean contain(Token token,String image) {
-        List<Integer[]> x = processExclude(image);
-        if(token!=null&&token.image.equals("<int>"))
-        {
-            for(Integer[] offset:x)
-            {
-
-                for(int i=offset[0];i>=0;i--)
-                {
-
-                }
-
-
+            TermQueryParser filter = new TermQueryParser(new ByteArrayInputStream(entry.getValue().getBytes()),"utf-8");
+            if (filter.parse(new TermList(map,carray))) {
+                res.add(entry.getKey());
             }
 
 
-
-        }else{
-            if (x != null&&x.size()>0)
-                return true;
-            else
-                return false;
         }
 
-        return contain(image);
+        return res;
     }
 
 
-    public boolean checkCross(Integer[] a,Integer[] b) {
-        return (a[0] >= b[0] && a[0] <= b[0]+b[1])
-                || (a[0]+a[1] >= b[0] && a[0]+a[1] <= b[0]+b[1]);
-    }
 
 }
